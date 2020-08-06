@@ -25,4 +25,4 @@ Repository of programs used to manipulate files - convert across file types, col
 - Clone this repo to a local directory
 - To import this package to your own programs, include the following:
   - `import sys`
-  - `sys.path.append('path/to/home/directory/')`
+  - `sys.path.append('path/to/local/directory/')`
