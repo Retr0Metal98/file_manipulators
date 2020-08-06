@@ -20,3 +20,9 @@ Repository of programs used to manipulate files - convert across file types, col
 ## Setup
 - Download & install all executables and python packages
 - Change the variables in `exec_paths.py` to the paths of the installed executables & packages
+
+## Usage
+- Clone this repo to a local directory
+- To import this package to your own programs, include the following:
+  - `import sys`
+  - `sys.path.append('path/to/home/directory/')`
