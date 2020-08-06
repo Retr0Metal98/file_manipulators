@@ -1,12 +1,22 @@
 # file_manipulators
-Repository of programs used to manipulate files - convert across file types, collate/segment, etc.
+Repository of programs used to manipulate files - convert across file types, collate/segment them, etc.
 
-## common_file_ops.py
-A file containing functions to perform common operations on files, filepaths, etc.
-- Dependencies:
-  - Python packages: subprocess, os, ffmpy
-  - `FFmpeg`: download the executables from https://ffmpeg.org/download.html
-- Setup:
-  - Change the global variable `FFMPEG_PATH` to a string containing the local path to `ffmpeg.exe`
+## Dependencies
+- Executables: 
+  - FFmpeg: https://ffmpeg.org/download.html
+  - Timidity++ - an open source MIDI to WAVE converter and player: https://sourceforge.net/projects/timidity/
+  - WaoN - a wave-to-notes transcriber: http://waon.sourceforge.net
+  - The Analysis & Resynthesis Sound Spectrograph (ARSS): http://arss.sourceforge.net
+- Python packages:
+  - In built packages: `sys`, `os`, `subprocess`, `glob`, `shutil`, `csv`, `argparse`, `datetime`
+  - `numpy`: https://pypi.org/project/numpy/
+  - `pillow`/`PIL`: https://pypi.org/project/Pillow/
+  - `matplotlib`: https://pypi.org/project/matplotlib/
+  - `ffmpy`: https://pypi.org/project/ffmpy/
+  - `pretty_midi`: https://pypi.org/project/pretty_midi/ https://craffel.github.io/pretty-midi/
+    - Also needs a clone of the `pretty_midi_examples` folder from `pretty_midi`'s github repo
+  - `py_midicsv`: https://pypi.org/project/py-midicsv/
 
-## audio_converter.py
+## Setup
+- Download & install all executables and python packages
+- Change the variables in `exec_paths.py` to the paths of the installed executables & packages
