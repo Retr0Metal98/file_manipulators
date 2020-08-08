@@ -48,6 +48,7 @@ def read_config(print_config=False):
         print("Configuration file does not exist...")
         print("Please run on command line: python \"path/to/file_manipulators/config.py\" write")
         print("Alternatively, run the write_config() function of config.py")
+        return {}
     config = json.loads(config_file.read())
     if print_config:
         print("Saved configuration:")
