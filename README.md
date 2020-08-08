@@ -23,7 +23,7 @@ Repository of programs used to manipulate files - convert across file types, col
 - From within the `file_manipulators` folder, run `python config.py write` and enter the paths of the installed executables & packages as prompted
 
 ## Usage
-- Clone this repo to a local directory
-- To import this package to your own programs, include the following:
+- Before importing this package to your own programs, include the following:
   - `import sys`
-  - `sys.path.append('path/to/local/directory/')`
+  - `sys.path.append('path/to/parent/directory/of/file_manipulators/folder')`
+  
