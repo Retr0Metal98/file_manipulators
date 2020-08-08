@@ -1,16 +1,16 @@
 '''
-Module with functions made to process large batches of files: send through series of conversions
+Module with functions made to process large batches of files: send through series of conversions/operations
 '''
+# imports of built-in packages
 import os
 import glob
 import shutil
-
-from file_manipulators.common_file_ops import path_splitter, ensure_dir, file_segmenter, metadata_remover
-from file_manipulators.audio_converter import *
-
 import argparse # handles execution of batch operations from command line
 import datetime
 
+# imports from package modules
+from file_manipulators.common_file_ops import path_splitter, ensure_dir, file_segmenter, metadata_remover
+from file_manipulators.audio_conv_ops import *
 # ------------------------------------------------------------------------------------------------- #
 ## Functions to process large batches of files 
 
@@ -227,7 +227,6 @@ def batchOps_from_command_line():
         print('-------------------------------------------------')
         print(e)
 
-# attempt to run command line functionality
-# if unable to do so, do nothing; this ensures that regular imports of the module will work.
+# Run command line functionality if this is the main program
 if __name__ == '__main__':
     batchOps_from_command_line()

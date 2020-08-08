@@ -1,11 +1,18 @@
 '''
 Module containing functions used to perform common operations on files, file paths, etc.
 '''
+# imports of built-in packages
 import subprocess
 import os
-import ffmpy
 
-from file_manipulators.exec_paths import FFMPEG_PATH
+# imports from package modules
+## get paths to required executables from config.json
+from file_manipulators.config import read_config
+exec_paths = read_config()
+FFMPEG_PATH = exec_paths["FFMPEG_PATH"]
+
+# imports of external packages
+import ffmpy
 
 def path_splitter(path):
     directory,file_name = os.path.split(path)
@@ -26,7 +33,7 @@ def run_exec(exec_path,exec_options_list,input_data=None, stdout=None, stderr=No
             stderr=stderr
         )
     except OSError as e:
-        print("OSError occured, perhaps Executable path is invalid")
+        print("OSError occured, perhaps executable path is invalid")
     output = process.communicate(input=input_data)
     if process.returncode != 0:
         print("Executable exited with process return code "+str(process.returncode))
