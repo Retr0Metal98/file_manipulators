@@ -1,25 +1,31 @@
 '''
 Module with functions for converting audio files across several formats
 '''
-# imports for file & directory related operations etc.
+# imports of built-in packages
 import os
+import sys
 import csv
 
-# imports for array manipulation & image processing
-import numpy as np
-from PIL import Image
-
-from file_manipulators.exec_paths import WAON_PATH, ARSS_PATH, TIMIDITY_PATH, PRETTY_MIDI_EXAMPLES_PATH
+# imports from package modules
 from file_manipulators.common_file_ops import path_splitter, run_exec, img_fmt_converter
+from file_manipulators.config import read_config
 
-import sys
-# append paths to the location of the pretty_midi_examples folder (cloned from the pretty_midi github)
+## get paths to required executables from config.json
+exec_paths = read_config()
+TIMIDITY_PATH = exec_paths["TIMIDITY_PATH"]
+WAON_PATH = exec_paths["WAON_PATH"]
+ARSS_PATH = exec_paths["ARSS_PATH"]
+PRETTY_MIDI_EXAMPLES_PATH = exec_paths["PRETTY_MIDI_EXAMPLES_PATH"]
 sys.path.append(PRETTY_MIDI_EXAMPLES_PATH)
 
+# imports of external packages
+## imports for array manipulation & image processing
+import numpy as np
+from PIL import Image
+## imports for handling midi files
 import pretty_midi
 from pretty_midi_examples import reverse_pianoroll
 import py_midicsv # package with functions used to convert between midi & csv
-
 
 
 # Functions for encoding/decoding integer values [used for transcribing piano roll note & velocity info to text files]
@@ -58,15 +64,15 @@ def wav_to_midi(source_path,dest_path):
     waon_options = ['-i', source_path, '-o', dest_path]
     res = run_exec(WAON_PATH,waon_options)
 
-timidity_options = ['-Ow','-o']
+timidity_options = '-Ow -o'
 
-def midi_to_wav(source_path,dest_path,options_list=timidity_options):
+def midi_to_wav(source_path,dest_path,options=timidity_options):
     '''
     Converts a .mid file to a .wav file using Timidity++ (timidity.exe)
     Parameters:
         source_path = str/os.path; path to .mid file 
         dest_path = str/os.path; path to .wav file or to directory (default: use name of source .mid file for output .wav file)
-        options_list = list; command line options passed to timidity: meant for the output file (default: ['-Ow','-o'])
+        options = str; command line options passed to timidity: meant for the output file (default: '-Ow -o'])
     '''
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
@@ -77,37 +83,37 @@ def midi_to_wav(source_path,dest_path,options_list=timidity_options):
         dest_path = os.path.join(dest_path,src_splits['name']+".wav")
 
     # prep cmd list for subprocess.Popen()
-    full_options = [source_path]+options_list+[dest_path]
+    full_options = [source_path]+options.split()+[dest_path]
     run_exec(TIMIDITY_PATH,full_options)
 
-spec_analysis_options = ['--quiet','--analysis','-min','27.5','-max','19912.127','--bpo','12','--pps','25','--brightness','1']
-wav_sine_synth_options = ['--quiet','--sine','-min','27.5','-max','19912.127','--pps','25','-r','44100','-f','16']
-wav_noise_synth_options = ['--quiet','--noise','-min','27.5','-max','19912.127','--pps','25','-r','44100','-f','16']
+spec_analysis_options = '--quiet --analysis -min 27.5 -max 19912.127 --bpo 12 --pps 25 --brightness 1'
+wav_sine_synth_options = '--quiet --sine -min 27.5 -max 19912.127 --pps 25 -r 44100 -f 16'
+wav_noise_synth_options = '--quiet --noise -min 27.5 -max 19912.127 --pps 25 -r 44100 -f 16'
 
-def wav_to_spectro(source_path,dest_path,options_list=spec_analysis_options,encode=True):
+def wav_to_spectro(source_path,dest_path,options=spec_analysis_options,encode=True):
     '''
     Converts a .wav file to a spectrogram (.png file) using ARSS - http://arss.sourceforge.net
     Parameters:
         source_path = str/os.path; path to .wav file 
         dest_path = str/os.path; path to spectrogram (.png file) or to directory (default: use name of source .wav file for output .png file)
-        options_list = list; command line options passed to ARSS:
+        options = str; command line options passed to ARSS as a space separated string:
                     selects analysis mode, frequency range, beats per octave, pixels/sec, etc.
         encode = boolean; whether or not to re-encode the generated .png spectrogram as rgba - appends '-enc' to output file name
     '''
     src_splits = path_splitter(source_path)
-    dest_splits = path_splitter(dest_path) # original splits
+    dest_splits = path_splitter(dest_path) # original path splits
     
     if dest_splits['extension'] == '': 
         # if dest_path points to a directory and not a .png file
         # default to using source file name for output file
         dest_path = os.path.join(dest_path,src_splits['name']+".png")
 
-    arss_options = ['-i', source_path, '-o', dest_path] + options_list
+    arss_options = ['-i', source_path, '-o', dest_path] + options.split()
     res = run_exec(ARSS_PATH,arss_options)
     if encode:
         # if required to re-encode the png, will attempt to do so using ffmpeg.
 
-        dest_splits = path_splitter(dest_path) # take splits again in case the path was modified earlier 
+        dest_splits = path_splitter(dest_path) # take path splits again in case the path was modified earlier 
         enc_path = os.path.join(dest_splits['directory'],dest_splits['name']+"-enc.png")
         try:
             img_fmt_converter(dest_path,enc_path,"rgba")
@@ -116,15 +122,14 @@ def wav_to_spectro(source_path,dest_path,options_list=spec_analysis_options,enco
         finally:
             os.remove(dest_path)
 
-def spectro_to_wav(source_path,dest_path,options_list=wav_noise_synth_options):
+def spectro_to_wav(source_path,dest_path,options=wav_noise_synth_options):
     '''
     Converts a spectrogram (.png file) to a .wav file using ARSS - http://arss.sourceforge.net
     Parameters:
         source_path = str/os.path; path to spectrogram (.png file)
         dest_path = str/os.path; path to .wav file or to directory (default: use name of source .png file for output .wav file)
-        options_list = list; command line options passed to ARSS:
+        options = str; command line options passed to ARSS as a space separated string:
                     selects synthesis mode (noise/sine), frequency range, beats per octave, pixels/sec, etc.
-                    (can choose default module-level lists)
     '''
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
@@ -138,7 +143,7 @@ def spectro_to_wav(source_path,dest_path,options_list=wav_noise_synth_options):
         # default to using source file name for output file
         dest_path = os.path.join(dest_path,src_splits['name']+".wav")
 
-    arss_options = ['-i', inter_path, '-o', dest_path] + options_list
+    arss_options = ['-i', inter_path, '-o', dest_path] + options.split
     res = run_exec(ARSS_PATH,arss_options)
     os.remove(inter_path)
 
