@@ -18,8 +18,9 @@ Repository of programs used to manipulate files - convert across file types, col
   - `py_midicsv`: https://pypi.org/project/py-midicsv/
 
 ## Setup
-- Download & install all executables and python packages
-- Change the variables in `exec_paths.py` to the paths of the installed executables & packages
+- Download & install all required executables and python packages
+- Clone/Download & unzip this repo to a local directory
+- From within the `file_manipulators` folder, run `python config.py write` and enter the paths of the installed executables & packages as prompted
 
 ## Usage
 - Clone this repo to a local directory
