@@ -94,7 +94,7 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
         midi_folder = str/os.path; path to root directory containing .mid files (will recursively search in directory for .mid files)
         rolls_folder = str/os.path; path to directory where piano roll image slices will be stored
         split_size = float; duration of piano roll image slices in seconds
-        conv_resolution = int; Sampling frequency for piano roll columns (each column is separated by 1/pps seconds)
+        conv_resolution = int; Sampling frequency for piano roll columns (each column is separated by 1/conv_resolution seconds)
         to_brighten = boolean; determine pixel brightnesses of output piano roll image slices: True=(0,255), False=(0,127)
         compress_colors = boolean; whether or not piano roll columns are compressed using the 3 color channels of the image
     '''
@@ -106,7 +106,7 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
         brightness_lvl = "(0-255)"
     f_prefix_full = "full, "
     f_prefix_seg = "t="+str(split_size)+", "
-    f_suffix = "pps="+str(conv_resolution)+", b="+brightness_lvl
+    f_suffix = "fs="+str(conv_resolution)+", b="+brightness_lvl
     if compress_colors:
         f_suffix +=" -cc"
 
@@ -118,12 +118,12 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
     
     # Starting from MIDI Files
     # 1. Convert all MIDI files in source path to midi rolls
-    print("Creating piano rolls for full tracks:")
+    print("Creating piano roll images for full tracks:")
     midi_counter = 0
     failed_files,error_counter = [], 0
     midi_glob = glob.glob(midi_folder+"/**/*.mid", recursive=True)
     for filepath in midi_glob:
-        conv = midi_to_roll(filepath,full_track_folder,pps=conv_resolution,brighten=to_brighten,compress_colors=compress_colors)
+        conv = midi_to_roll(filepath,full_track_folder,fs=conv_resolution,out_type='one_roll',brighten=to_brighten,compress_colors=compress_colors)
         if conv == 1:
             midi_counter += 1
         else:
@@ -144,7 +144,7 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
     print("number of rolls in "+full_track_folder+": "+str(len(roll_glob)))
     for filepath in roll_glob:
         _,f_name = os.path.split(filepath)
-        chunk_counter += rollPic_slicer(filepath,segment_folder,pps=conv_resolution,compress_colors=compress_colors,slice_dur=split_size)
+        chunk_counter += rollPic_slicer(filepath,segment_folder,fs=conv_resolution,compress_colors=compress_colors,slice_dur=split_size)
         midi_counter += 1
         print("Chunks created: {}".format(chunk_counter), end='\r')
     end_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -158,7 +158,7 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
     print(str(chunk_counter)+" "+str(split_size)+"-second sized .png roll chunks!")
     print('------------------------------------------------------------------------------------------')
 
-def midi_to_rollTxt_batch(midi_folder,txt_path,conv_resolution=25,note_enc_fn=hex2,velo_enc_fn=hex2):
+def midi_to_rollTxt_batch(midi_folder,txt_path,all_inst=False,conv_resolution=25,note_enc_fn=hex2,velo_enc_fn=hex2):
     '''
     Takes a directory of .mid files, converts them to text which encodes piano roll notes & velocities.
     Appends the text of all .mid files together in one large .txt file.
@@ -172,7 +172,7 @@ def midi_to_rollTxt_batch(midi_folder,txt_path,conv_resolution=25,note_enc_fn=he
     line_count = 0
     midi_glob = glob.glob(midi_folder+"/**/*.mid", recursive=True)
     for filepath in midi_glob:
-        t = midi_to_rollTxt(filepath,txt_path,pps=conv_resolution,note_enc=note_enc_fn,velo_enc=velo_enc_fn)
+        t = midi_to_rollTxt(filepath,txt_path,all_ins=all_inst,fs=conv_resolution,note_enc=note_enc_fn,velo_enc=velo_enc_fn)
         if t != 0:
             line_count += t
             midi_counter += 1
