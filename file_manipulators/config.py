@@ -19,7 +19,7 @@ def write_config():
     arss_path = input("ARSS: arss.exe\n")
     print("-------------------------------------------------------------------------------------------------")
     print("This package also requires a clone of the pretty_midi/examples folder from:\n https://github.com/craffel/pretty-midi")
-    print("After downloading the folder, enter the filepath to it below.")
+    print("After downloading the folder and renaming it to \"pretty_midi_examples\", enter the filepath to it below.")
     pretty_midi_examples_path = input("pretty_midi/examples folder path:\n")
     print("*************************************************************************************************")
 
@@ -68,4 +68,3 @@ def config_from_command_line():
         write_config()
     elif args.config_operation == 'read':
         read_config(print_config=True) 
- 
