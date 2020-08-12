@@ -594,8 +594,18 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
         print("File at {} does not exist... Exiting program".format(source_path))
     
 
+    # new version - work in progress #
     raw_lines = txt_in.readlines()
     instrument_rolls = {}
+    for line in raw_lines:
+        inst_splits = [s for s in line.split('\t') if s != '' and s != '']
+        for inst_line in inst_splits:
+            code_and_notes = [s for s in inst_line.split(' ') if s != '']
+            inst_code = code_and_notes[0].split('-')[0]
+    
+    # # previous version - no longer compatible # #
+    
+    # raw_lines = txt_in.readlines()
     # T_roll_rows = []
     # note_len,velo_len = 0, 0
     # transcribed_notes, dropped_notes, bad_notes, invalid_notes = 0, 0, 0, 0
@@ -604,11 +614,7 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
     #     note_len,velo_len = 2,2
 
     # split_len = note_len+velo_len+1
-    for line in raw_lines:
-        inst_splits = [s for s in line.split('\t') if s != '' and s != '']
-        for inst_line in inst_splits:
-            code_and_notes = [s for s in inst_line.split(' ') if s != '']
-            inst_code = code_and_notes[0].split('-')[0]
+    # for line in raw_lines:
     #     splits = [line[i:i+split_len] for i in range(0,len(line),split_len)]
     #     roll_row = np.zeros((128,))
     #     for s in splits:
@@ -637,24 +643,24 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
     
     # roll_array = np.vstack(T_roll_rows)
     # roll_array = roll_array.T
-    roll_to_midi(source_path,dest_path,input_array=roll_array,fs=fs,limit_rollvals=False)
-    if logging:
-        log_strings = [
-            '-------------------------------------------------',
-            "Converted rollTxt {} to midi!".format(source_path),
-            '*************************************************',
-            "Transcribed {} notes".format(transcribed_notes),
-            "Dropped {} incomplete notes".format(dropped_notes),
-            "Ignored {} bad notes".format(bad_notes),
-            "Ignored {} invalid notes".format(invalid_notes),
-            '-------------------------------------------------',
-        ]
-        log_path = os.path.join(dest_splits['directory'],src_splits['name']+"-rollTxt_conv_log.txt")
-        log_file = open(log_path,'a+')
-        for line in log_strings:
-            print(line)
-        log_file.writelines(line+"\n" for line in log_strings)
-        log_file.close()
+    # roll_to_midi(source_path,dest_path,input_array=roll_array,fs=fs,limit_rollvals=False)
+    # if logging:
+    #     log_strings = [
+    #         '-------------------------------------------------',
+    #         "Converted rollTxt {} to midi!".format(source_path),
+    #         '*************************************************',
+    #         "Transcribed {} notes".format(transcribed_notes),
+    #         "Dropped {} incomplete notes".format(dropped_notes),
+    #         "Ignored {} bad notes".format(bad_notes),
+    #         "Ignored {} invalid notes".format(invalid_notes),
+    #         '-------------------------------------------------',
+    #     ]
+    #     log_path = os.path.join(dest_splits['directory'],src_splits['name']+"-rollTxt_conv_log.txt")
+    #     log_file = open(log_path,'a+')
+    #     for line in log_strings:
+    #         print(line)
+    #     log_file.writelines(line+"\n" for line in log_strings)
+    #     log_file.close()
 
 
 spec_analysis_options = '--quiet --analysis -min 27.5 -max 19912.127 --bpo 12 --pps 25 --brightness 1'
