@@ -42,8 +42,9 @@ def read_config(print_config=False):
     If it doesn't exist, sends an error message
     '''
     config_file = ""
+    config_file_name = os.path.join(os.path.dirname(__file__), "config.json")
     try:
-        config_file = open(os.path.join(os.path.dirname(__file__), "config.json"), "r")
+        config_file = open(config_file_name, "r")
     except FileNotFoundError:
         print("Configuration file does not exist...")
         print("Please run on command line: python \"path/to/file_manipulators/config.py\" write")
@@ -51,7 +52,7 @@ def read_config(print_config=False):
         return {}
     config = json.loads(config_file.read())
     if print_config:
-        print("Saved configuration:")
+        print("Reading Configuration file- {}:".format(config_file_name))
         print("{")
         for k,v in config.items():
             print("{}: {}".format(repr(k),repr(v)))
@@ -67,4 +68,4 @@ def config_from_command_line():
         write_config()
     elif args.config_operation == 'read':
         read_config(print_config=True) 
-      
+ 
