@@ -60,7 +60,25 @@ def instrument_to_insCode(instrument):
         code += "n"    
     return code
 
-
+def check_insCode(insCode,print_res=False):
+    prog,drum = int(insCode[:-1]),insCode[-1:]
+    insName = ''
+    res_msg = ''
+    if drum == 'n':
+        drum = False
+        insName = pretty_midi.program_to_instrument_name(prog)
+        res_msg = "insCode {} refers to the instrument {}".format(insCode,insName)
+    elif drum == 'd':
+        drum = True
+        insName = pretty_midi.note_number_to_drum_name(prog)
+        res_msg = "insCode {} refers to the drum instrument {}".format(insCode,insName)
+    else: # last character must be 'd' or 'n'
+        res_msg = "insCode is invalid and doesn't refer to any instrument"
+    if insName:
+        res = True
+    if print_res:
+        print(res_msg)
+        
 def insCode_to_instrument(insCode):
     '''
     Given the string code for an instrument, returns the pretty_midi Instrument object
@@ -504,50 +522,34 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
             ## single instrument mode
             # roll to be transcribed as Acoustic Grand Piano - instrument program 0 (default)
             roll_array = midi_to_roll(source_path,"",fs=fs,out_type='array_r2')
-            ins_codes = ("0n",) 
+            # set ins_codes to contain only the default instrument
+            ins_codes = ("0n",)
+            # reshape the roll_array to rank-3 (one instrument)
+            roll_array = np.reshape(roll_array,(roll_array.shape+(1,)))
         else:
             #if transcribing with all instruments, each line represents a roll column and would have the following template:
             # <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
-                roll_array,ins_codes = midi_to_roll(source_path,"",fs=fs,out_type='array_r3')
+            roll_array,ins_codes = midi_to_roll(source_path,"",fs=fs,out_type='array_r3')
     except Exception:
         print("failed to get roll_array")
         return 0
-        # roll_array = list(roll_array)
-        # num_notes, num_timesteps = len(roll_array[0]), len(roll_array)
-        
-        # print("Number of notes:",num_notes)
-        # print("Number of timesteps:",num_timesteps)
-        # 
-        # for t in range(num_timesteps):
-        #     played_notes_encoded = ""
-        #     for n in range(num_notes):
-        #         velo = roll_array[t][n]
-        #         if velo > 0:
-        #             played_notes_encoded += enc_fn(int(n),'forward')+enc_fn(int(velo),'forward')+" "
-            
-        #     played_notes_encoded = played_notes_encoded[:-1] # remove trailing space character
-        #     if played_notes_encoded == "":
-        #         played_notes_encoded = enc_fn(int(0),'forward')+enc_fn(int(0),'forward')
-        #     txt_out.write(played_notes_encoded) 
-        #     txt_out.write("\n")
-        # txt_out.write("\n")
-        # txt_out.close()
-        # return num_timesteps
-    
-    encoded_ins_codes = [enc_fn(int(c[:-1]),"forward")+c[-1] for c in ins_codes] #ins_code is of the form: <number from 0-127><n/d based on is_drum>
-    print(roll_array.shape)
-    col_count = 0
-    for c in range(roll_array.shape[1]):
+
+    num_timesteps = roll_array.shape[1] # get number of timesteps/columns from 2nd axis of roll_array
+    num_instruments = roll_array.shape[2] # get number of instruments from 3rd axis of roll_array    
+    # ins_code is of the form: <number from 0-127><n/d based on is_drum>
+    # encode the number part of the ins_codes using the encoding function enc_fn
+    encoded_ins_codes = [enc_fn(int(c[:-1]),"forward")+c[-1] for c in ins_codes]
+
+    for c in range(num_timesteps):
         col = roll_array[:,c,:]
         col_str = ""
-        col_count += 1
-        for i in range(roll_array.shape[2]):
+        for i in range(num_instruments):
             ins_str = encoded_ins_codes[i]+"- "
             col_ins = col[:,i]
             non_zero_notes = list(np.nonzero(col_ins)[0]) #indices of notes with non-zero velocity values
             if len(non_zero_notes) == 0:
                 # if no notes for instrument, add a null note
-                ins_str += enc_fn(int(0),'forward')+enc_fn(int(0),'forward')
+                ins_str += enc_fn(int(0),'forward')+'-'+enc_fn(int(0),'forward')
             else:
                 # otherwise, add note-velo strings separated by spaces
                 for n in non_zero_notes:
@@ -558,7 +560,7 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
         txt_out.write(col_str)
     txt_out.write("\n")
     txt_out.close()
-    return col_count            
+    return num_timesteps            
 
 
 def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
@@ -591,44 +593,50 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
     except IOError:
         print("File at {} does not exist... Exiting program".format(source_path))
     
-    raw_lines = txt_in.readlines()
-    T_roll_rows = []
-    note_len,velo_len = 0, 0
-    transcribed_notes, dropped_notes, bad_notes, invalid_notes = 0, 0, 0, 0
-    
-    if enc_fn == hex2:
-        note_len,velo_len = 2,2
 
-    split_len = note_len+velo_len+1
-    for line in raw_lines:
-        splits = [line[i:i+split_len] for i in range(0,len(line),split_len)]
-        roll_row = np.zeros((128,))
-        for s in splits:
-            if s == '\n':
-                continue # no note on that line
-            if len(s) != split_len:
-                # print("Dropped note: ",s)
-                dropped_notes += 1
-                continue 
-            else:
-                # take the first 4 characters
-                try:
-                    note,velo = enc_fn(s[:note_len], 'reverse'), float(enc_fn(s[note_len:split_len], 'reverse'))
-                except ValueError:
-                    # print("Bad note: ",s)
-                    bad_notes += 1
-                else:
-                    if (0 <= note <= 127) and (0 <= velo <= 127):
-                        transcribed_notes += 1
-                        roll_row[note] = velo
-                    else:
-                        # print("Note/Velo value out of valid range: ",s)
-                        invalid_notes += 1
-                        continue
-        T_roll_rows.append(roll_row)
+    raw_lines = txt_in.readlines()
+    instrument_rolls = {}
+    # T_roll_rows = []
+    # note_len,velo_len = 0, 0
+    # transcribed_notes, dropped_notes, bad_notes, invalid_notes = 0, 0, 0, 0
     
-    roll_array = np.vstack(T_roll_rows)
-    roll_array = roll_array.T
+    # if enc_fn == hex2:
+    #     note_len,velo_len = 2,2
+
+    # split_len = note_len+velo_len+1
+    for line in raw_lines:
+        inst_splits = [s for s in line.split('\t') if s != '' and s != '']
+        for inst_line in inst_splits:
+            code_and_notes = [s for s in inst_line.split(' ') if s != '']
+            inst_code = code_and_notes[0].split('-')[0]
+    #     splits = [line[i:i+split_len] for i in range(0,len(line),split_len)]
+    #     roll_row = np.zeros((128,))
+    #     for s in splits:
+    #         if s == '\n':
+    #             continue # no note on that line
+    #         if len(s) != split_len:
+    #             # print("Dropped note: ",s)
+    #             dropped_notes += 1
+    #             continue 
+    #         else:
+    #             # take the first 4 characters
+    #             try:
+    #                 note,velo = enc_fn(s[:note_len], 'reverse'), float(enc_fn(s[note_len:split_len], 'reverse'))
+    #             except ValueError:
+    #                 # print("Bad note: ",s)
+    #                 bad_notes += 1
+    #             else:
+    #                 if (0 <= note <= 127) and (0 <= velo <= 127):
+    #                     transcribed_notes += 1
+    #                     roll_row[note] = velo
+    #                 else:
+    #                     # print("Note/Velo value out of valid range: ",s)
+    #                     invalid_notes += 1
+    #                     continue
+    #     T_roll_rows.append(roll_row)
+    
+    # roll_array = np.vstack(T_roll_rows)
+    # roll_array = roll_array.T
     roll_to_midi(source_path,dest_path,input_array=roll_array,fs=fs,limit_rollvals=False)
     if logging:
         log_strings = [
