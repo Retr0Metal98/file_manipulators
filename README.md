@@ -20,10 +20,12 @@ Repository of programs used to manipulate files - convert across file types, col
 ## Setup
 - Download & install all required executables and python packages
 - Clone/Download & unzip this repo to a local directory
-- From within the `file_manipulators` folder, run `python config.py write` and enter the paths of the installed executables & packages as prompted
+- From within the repo, run `python run_config.py write` and enter the paths of the installed executables & packages as prompted
 
 ## Usage
-- Before importing this package to your own programs, include the following:
+- To use this package in your own programs, include the following lines:
   - `import sys`
-  - `sys.path.append('path/to/parent/directory/of/file_manipulators/folder')`
+  - `sys.path.append('path/to/parent/directory/of/file_manipulators/repo')`
+- Then import this package as: `import file_manipulators`
+- Or, import resources (modules, functions, variables, etc.) from the package using: `import file_manipulators.<resource_name>`
   
