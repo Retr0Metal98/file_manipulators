@@ -14,7 +14,7 @@ Repository of programs used to manipulate files - convert across file types, col
   - `matplotlib`: https://pypi.org/project/matplotlib/
   - `ffmpy`: https://pypi.org/project/ffmpy/
   - `pretty_midi`: https://pypi.org/project/pretty_midi/ https://craffel.github.io/pretty-midi/
-    - Also needs a clone of the `pretty_midi_examples` folder from `pretty_midi`'s github repo
+    - Also clone the `pretty_midi/examples` folder from `pretty_midi`'s github repo and rename it to `pretty_midi_examples`
   - `py_midicsv`: https://pypi.org/project/py-midicsv/
 
 ## Setup
