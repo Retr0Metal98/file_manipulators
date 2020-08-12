@@ -58,8 +58,7 @@ def read_config(print_config=False):
         print("}")
     return config
 
-# if called from command line
-if __name__ == "__main__":
+def config_from_command_line():
     cmdparser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     cmdparser.add_argument('config_operation',type=str,choices=["write","read"],help="Write/Read configuration file")
     args = cmdparser.parse_args()
@@ -67,5 +66,5 @@ if __name__ == "__main__":
         print("Writing configuration file...")
         write_config()
     elif args.config_operation == 'read':
-        read_config(print_config=True)   
-
+        read_config(print_config=True) 
+      
