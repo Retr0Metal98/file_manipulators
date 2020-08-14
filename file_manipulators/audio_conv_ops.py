@@ -321,9 +321,9 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol=0.25,non_drum
     fs : int, optional
         Sample rate for .wav file, by default 44100.
     drum_vol : float, optional
-        factor by which to multiply the amplitudes of the drum track waveforms (a kind of `volume` control), by default 0.25.
+        factor by which to multiply the drum track waveform amplitudes (a kind of `volume` control), by default 0.25.
     non_drum_vol: float, optional
-        factor by which to multiply the amplitudes of the NON-drum track waveforms (a kind of `volume` control), by default 1.0.
+        factor by which to multiply the NON-drum track waveform amplitudes (a kind of `volume` control), by default 1.0.
     """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
@@ -340,12 +340,13 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol=0.25,non_drum
         if ins.is_drum:
             # if instrument is a drum, get its waveform from chiptunes
             wave_f = chiptunes.synthesize_drum_instrument(ins,fs=fs)
-            # reduce the amplitude of its waveform by drum_vol_reduction
+            # adjust the amplitude of its waveform by drum_vol
             wave_f *= drum_vol
         else:
             # otherwise, get its waveform by calling its synthesize function (which will return an empty waveform if it is a drum instrument)
             wave_f = ins.synthesize(fs=fs)
-            wave_f *= non_drum_vol
+            # adjust the amplitude of its waveform by non_drum_vol
+            wave_f *= non_drum_vol 
         waveforms.append(wave_f)
     # Allocate output waveform, with #sample = max length of all waveforms
     synthesized = np.zeros(np.max([w.shape[0] for w in waveforms]))
