@@ -15,15 +15,20 @@ from .audio_conv_ops import *
 ## Functions to process large batches of files 
 
 def midi_to_arss_batch(midi_folder,arss_folder,split_size=5,delete_wav=True):
-    '''
-    Takes a directory of .mid files and converts them to .wav files. 
+    """Takes a directory of .mid files and converts them to .wav files. 
     Then converts the .wav files into several ARSS spectrograms representing audio clips of `split_size` seconds.
-    Parameters:
-        midi_folder = str/os.path; path to root directory containing .mid files (will recursively search in directory for .mid files)
-        arss_folder = str/os.path; path to directory where ARSS spectrogram slices will be stored
-        split_size = float; duration of ARSS spectrogram slices in seconds
-        delete_wav = boolean; whether or not to delete the intermediate .wav files
-    '''
+
+    Parameters
+    ----------
+    midi_folder : str/os.path
+        path to root directory containing .mid files (will recursively search in directory for .mid files).
+    arss_folder : str/os.path
+        path to directory where ARSS spectrogram slices will be stored.
+    split_size : int, optional
+        duration of ARSS spectrogram slices in seconds, by default 5.
+    delete_wav : bool, optional
+        whether or not to delete the intermediate .wav files, by default True.
+    """    
     # 1. create temporary directories under source_folder
     wav_folder = os.path.join(midi_folder,"WAVs from MIDIs")
     wav_splits = os.path.join(wav_folder,"splits")
@@ -88,16 +93,23 @@ def midi_to_arss_batch(midi_folder,arss_folder,split_size=5,delete_wav=True):
     
 
 def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution=25,to_brighten=True,compress_colors=True):
-    '''
-    Takes a directory of .mid files and converts them to piano roll image slices (.png files). 
-    Parameters:
-        midi_folder = str/os.path; path to root directory containing .mid files (will recursively search in directory for .mid files)
-        rolls_folder = str/os.path; path to directory where piano roll image slices will be stored
-        split_size = float; duration of piano roll image slices in seconds
-        conv_resolution = int; Sampling frequency for piano roll columns (each column is separated by 1/conv_resolution seconds)
-        to_brighten = boolean; determine pixel brightnesses of output piano roll image slices: True=(0,255), False=(0,127)
-        compress_colors = boolean; whether or not piano roll columns are compressed using the 3 color channels of the image
-    '''
+    """Takes a directory of .mid files and converts them to piano roll image slices (.png images of rolls flattened across original instruments).
+
+    Parameters
+    ----------
+    midi_folder : str/os.path
+        path to root directory containing .mid files (will recursively search in directory for .mid files).
+    rolls_folder : str/os.path
+        path to directory where piano roll image slices will be stored.
+    split_size : int, optional
+        duration of piano roll image slices in seconds, by default 5.
+    conv_resolution : int, optional
+        Sampling frequency for piano roll columns (each column is separated by 1/conv_resolution seconds), by default 25.
+    to_brighten : bool, optional
+        determine pixel brightness range of output piano roll image slices: True=(0,255), False=(0,127), by default True.
+    compress_colors : bool, optional
+        whether or not piano roll columns are compressed using the 3 color channels of the image, by default True.
+    """    
     start_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     
     # create suffixes for subfolder names and create the subfolders
@@ -123,7 +135,7 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
     failed_files,error_counter = [], 0
     midi_glob = glob.glob(midi_folder+"/**/*.mid", recursive=True)
     for filepath in midi_glob:
-        conv = midi_to_roll(filepath,full_track_folder,fs=conv_resolution,out_type='one_roll',brighten=to_brighten,compress_colors=compress_colors)
+        conv = midi_to_roll(filepath,full_track_folder,'one_roll',fs=conv_resolution,brighten=to_brighten,compress_colors=compress_colors)
         if conv == 1:
             midi_counter += 1
         else:
@@ -159,14 +171,22 @@ def midi_to_rollPics_batch(midi_folder,rolls_folder,split_size=5,conv_resolution
     print('------------------------------------------------------------------------------------------')
 
 def midi_to_rollTxt_batch(midi_folder,txt_path,all_inst=False,conv_resolution=25,enc_fn=hex2):
-    '''
-    Takes a directory of .mid files, converts them to text which encodes piano roll notes & velocities.
+    """Takes a directory of .mid files, converts them to text which encodes piano roll notes & velocities.
     Appends the text of all .mid files together in one large .txt file.
-    midi_folder = str/os.path; path to root directory containing .mid files (will recursively search in directory for .mid files)
-    txt_path = str/os.path; path to .txt file which will store the text forms of the .mid files
-    conv_resolution = int; number of text lines per second of audio (resolution)
-    note_enc_fn, velo_enc_fn = functions used to encode piano roll note/velocity values from float to str
-    '''
+    
+    Parameters
+    ----------
+    midi_folder : str/os.path
+        path to root directory containing .mid files (will recursively search in directory for .mid files).
+    txt_path : str/os.path
+        path to .txt file which will store the text encodings of the .mid files.
+    all_inst : bool, optional
+        True: encode original instrument info, False: use default instrument - Acoustic Grand Piano for all notes, by default False.
+    conv_resolution : int, optional
+        number of text lines per second of audio (resolution), by default 25.
+    enc_fn : function, optional
+        function used to encode piano roll note & velocity values and instrument codes as strings, by default hex2 (from audio_conv_ops).
+    """    
     ## bulk conversion of midi files to one large text file as encoded notes
     midi_counter = 0
     line_count = 0
@@ -181,6 +201,9 @@ def midi_to_rollTxt_batch(midi_folder,txt_path,all_inst=False,conv_resolution=25
 # ----------------------------------------------------------------------------------------- #
 # Command line functionality for bulk conversion operations #
 def batchOps_from_command_line():
+    '''
+    Function to provide command line functionality for bulk conversion operations.
+    '''
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
     # Setting up choices & help text for bulk operations

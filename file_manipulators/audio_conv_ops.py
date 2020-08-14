@@ -27,31 +27,48 @@ import pretty_midi
 from pretty_midi_examples import reverse_pianoroll,chiptunes
 import py_midicsv # package with functions used to convert between midi & csv
 
-
+# ------------------------------------------------------------------------------------------------- #
 # Functions for encoding/decoding integer values [used for transcribing piano roll note & velocity info to text files]
 # For compatability with the functions performing the transcription, custom encoding/decoding functions should have a signature like hex2 & operate on two modes as seen in hex2
-def hex2(n,direction):
-    '''
-    Converts an integer to its 2-digit hexadecimal form (string) or vice versa
-    Used for encoding/decoding piano roll note & velocity values to write/read text files
-    Parameters:
-        n = int; an integer
-        direction = str; 'forward': int -> str, 'reverse': str -> int
-    '''
-    if direction == 'forward':
-        return format(n,'02x').upper()
-    elif direction == 'reverse':
-        return int(n,16)
 
+def hex2(n,direction):
+    """Converts an integer to its 2-digit hexadecimal form (string) or vice versa.
+
+    Parameters
+    ----------
+    n : int/str
+        a positive integer or 2-digit hexadecimal string.
+    direction : str
+        direction of conversion: int to str, 'reverse': str to int.
+
+    Returns
+    -------
+    out : str/int
+        hexadecimal string of input int (or) base-10 int of input hexadecimal string.
+    """    
+    if direction == 'forward':
+        out = format(n,'02x').upper()
+    elif direction == 'reverse':
+        out = int(n,16)
+    return out
+
+
+# ------------------------------------------------------------------------------------------------- #
 # Utility functions
+
 def instrument_to_insCode(instrument):
-    '''
-    Given a pretty_midi Instrument object, returns a concise string code representing its program number & its is_drum parameter
-    Parameters:
-        instrument = pretty_midi.Instrument()
-    Returns:
-        ins_code = str; program code (as dec) + "d" if is_drum is True else "n"
-    '''
+    """Given a pretty_midi.Instrument object, returns a concise string code representing its program number & its is_drum parameter.
+
+    Parameters
+    ----------
+    instrument : pretty_midi.Instrument
+        object of pretty_midi.Instrument class.
+
+    Returns
+    -------
+    code : str 
+        concatenation of MIDI program code (as decimal) and ("d" if instrument.is_drum is True else "n").
+    """    
     code = str(instrument.program)
     
     if instrument.is_drum:
@@ -60,31 +77,55 @@ def instrument_to_insCode(instrument):
         code += "n"    
     return code
 
+
 def check_insCode(insCode,print_res=False):
+    """Checks if a given instrument code string is valid, optionally prints the result of the check.
+
+    Parameters
+    ----------
+    insCode : str
+        string to check if it represents a valid instrument code.
+    print_res : bool, optional
+        prints the result of checking the input string, by default False.
+
+    Returns
+    -------
+    res : bool
+        whether or not the input insCode was valid.
+    """    
     prog,drum = int(insCode[:-1]),insCode[-1:]
     insName = ''
     res_msg = ''
     if drum == 'n':
         drum = False
         insName = pretty_midi.program_to_instrument_name(prog)
-        res_msg = "insCode {} refers to the instrument {}".format(insCode,insName)
+        res_msg = "insCode {} refers to the instrument {}.".format(insCode,insName)
     elif drum == 'd':
         drum = True
         insName = pretty_midi.note_number_to_drum_name(prog)
-        res_msg = "insCode {} refers to the drum instrument {}".format(insCode,insName)
+        res_msg = "insCode {} refers to the drum instrument {}.".format(insCode,insName)
     else: # last character must be 'd' or 'n'
-        res_msg = "insCode is invalid and doesn't refer to any instrument"
+        res_msg = "insCode is invalid and doesn't refer to any instrument."
     if insName:
         res = True
     if print_res:
         print(res_msg)
-        
+    return res
+
+
 def insCode_to_instrument(insCode):
-    '''
-    Given the string code for an instrument, returns the pretty_midi Instrument object
-    Parameters:
-        insCode = str; string which encodes the program number and is_drum bool of the Instrument
-    '''
+    """Given the string code for an instrument, returns the corresponding pretty_midi.Instrument object.
+
+    Parameters
+    ----------
+    insCode : str
+        string which encodes the program number and is_drum bool of the Instrument.
+
+    Returns
+    -------
+    instrument : pretty_midi.Instrument
+        pretty_midi.Instrument object corresponding to the input insCode.
+    """
     prog,drum = int(insCode[:-1]),insCode[-1:]
 
     name_str = 'ins_{}'.format(prog)
@@ -98,15 +139,20 @@ def insCode_to_instrument(insCode):
 
 
 def drum_ins_to_roll(drum_ins,fs=25):
-    '''
-    Given a drum Instrument (pretty_midi.Instrument instance), return a rank-2 array: a drum roll
-    Does not process pitch_bends and control_changes
-    Parameters:
-        drum_ins = pretty_midi.Instrument; 
-            Instrument instance with is_drum attribute = True
-        fs = int; 
-            Sampling frequency for drum roll columns (each column is separated by 1/fs seconds)
-    '''
+    """Given a drum Instrument (pretty_midi.Instrument object), return a 2D array: a drum roll containing notes & velocities. Does not process pitch_bends and control_changes.
+
+    Parameters
+    ----------
+    drum_ins : pretty_midi.Instrument
+        Instrument object with is_drum attribute set to True (represents MIDI drum instrument).
+    fs : int, optional
+        Sampling frequency for drum roll columns (each column is separated by 1/fs seconds), by default 25.
+
+    Returns
+    -------
+    drum_roll : np.ndarray, shape=(128,timesteps)
+        2D piano roll of MIDI data for the input drum instrument.
+    """      
     if drum_ins.notes == []:
         return np.array([[]]*128)
     end_time = drum_ins.get_end_time()
@@ -116,22 +162,28 @@ def drum_ins_to_roll(drum_ins,fs=25):
         # Should interpolate
         drum_roll[note.pitch,int(note.start*fs):int(note.end*fs)] += note.velocity
     return drum_roll
-    # converting drum_roll back to instrument is covered in rollArr3R_to_PrettyMIDI
+    # converting drum_roll back to instrument is covered in rollArr3D_to_PrettyMIDI
 
 
-def rollArr2R_to_Img(roll_array,brighten,compress_colors):
-    '''
-    Converts a rank-2 piano_roll_array to a PIL Image object
-    Parameters:
-        roll_array = rank-2 np.ndarray; 
-            piano roll of 1 instrument
-        brighten = boolean; 
-            whether or not to multiply pixel brightnesses by 2, i.e., bring them from the range (0,127) to (0,255)
-        compress_colors = boolean; 
-            whether or not to compress the raw 2D np.ndarray into the 3 color channels of the output image:
-                True = 3 columns of the piano roll are represented by 1 column of pixels using the value of each column for the corresponding R,G,B channels
-                False = 3 columns of the piano roll are represented by 3 columns of pixels using the same value for the R,G,B channels
-    '''
+def rollArr2D_to_Img(roll_array,brighten,compress_colors):
+    """Converts a 2D piano roll of MIDI data to a PIL Image object.
+
+    Parameters
+    ----------
+    roll_array : np.ndarray, shape=(notes,timesteps)
+        2D Piano roll of MIDI data.
+    brighten : bool
+        whether or not to multiply pixel brightnesses by 2, i.e., bring them from the range (0,127) to (0,255).
+    compress_colors : bool
+        whether or not to compress the raw 2D np.ndarray into the 3 color channels of the output image:
+            True = 3 columns of the piano roll are represented by 1 column of pixels using the value of each column for the corresponding R,G,B channels.
+            False = 3 columns of the piano roll are represented by 3 columns of pixels using the same value for the R,G,B channels.
+
+    Returns
+    -------
+    roll_img : PIL.Image
+        An Image object of the input roll_array converted to RGB format.
+    """    
     if brighten:
         roll_array *= 2 
     if compress_colors:
@@ -149,19 +201,24 @@ def rollArr2R_to_Img(roll_array,brighten,compress_colors):
     return roll_img
 
 
-def rollArr3R_to_PrettyMIDI(roll_array,ins_codes,fs=25):
-    '''
-    Converts a rank-3 piano_roll_array to a PrettyMIDI class instance using instrument codes 
-    Expands on the function piano_roll_to_pretty_midi from https://github.com/craffel/pretty-midi/blob/master/examples/reverse_pianoroll.py
+def rollArr3D_to_PrettyMIDI(roll_array,ins_codes,fs=25):
+    """Converts a 3D piano roll of MIDI data (combination of 2D piano rolls of multiple instruments) to a PrettyMIDI object using input instrument codes.
+    Expands on the function `piano_roll_to_pretty_midi` from https://github.com/craffel/pretty-midi/blob/master/examples/reverse_pianoroll.py 
 
-    Parameters:
-        roll_array = rank-3 np.ndarray; 
-            must be of shape - (#notes,#timesteps,#instruments) filled with velocity values in the range (0,127)
-        ins_codes = tuple/sequence; 
-            MIDI program codes for the instruments used to generate the .mid file
-        fs = int; 
-            Sampling frequency for piano roll columns (each column is separated by 1/fs seconds)
-    '''
+    Parameters
+    ----------
+    roll_array : np.ndarray, shape=(notes,timesteps,instruments)
+        3D piano roll of MIDI data (2D piano rolls of multiple instruments padded to same shape and stacked along 'timesteps' axis).
+    ins_codes : tuple/list
+        MIDI program codes for the instruments to be used to generate the .mid file. See the function instrument_to_insCode for details.
+    fs : int, optional
+        Sampling frequency for piano roll columns (each column is separated by 1/fs seconds), by default 25.
+
+    Returns
+    -------
+    pm : pretty_midi.PrettyMIDI
+        PrettyMIDI object with all instruments and corresponding notes from the input roll_array.
+    """    
     notes,frames,num_ins = roll_array.shape
     pm = pretty_midi.PrettyMIDI()
     instruments_used = [insCode_to_instrument(c) for c in ins_codes] # list of Instrument objects
@@ -177,7 +234,6 @@ def rollArr3R_to_PrettyMIDI(roll_array,ins_codes,fs=25):
     note_on_time = [np.zeros(notes) for i in range(num_ins)]
 
     for note,time,ins in zip(*velocity_changes):
-        # print("Ins: {}, Note: {}, Timestep: {}".format(ins,note,time))
         velocity = roll_array[note,time+1,ins]
         time = time / fs
         if velocity > 0:
@@ -196,18 +252,20 @@ def rollArr3R_to_PrettyMIDI(roll_array,ins_codes,fs=25):
     pm.instruments = instruments_used
     return pm
 
+
 # ------------------------------------------------------------------------------------------------- #
 ## Functions to perform conversions on individual files
 
 def wav_to_midi(source_path,dest_path):
-    '''
-    Converts a .wav file to .mid file using WaoN - http://waon.sourceforge.net
-    Parameters:
-        source_path = str/os.path; 
-            path to .wav file 
-        dest_path = str/os.path; 
-            path to .mid file or to directory (default: use name of source .wav file for output .mid file)
-    '''
+    """Converts a .wav file to .mid file using WaoN - http://waon.sourceforge.net
+
+    Parameters
+    ----------
+    source_path : 
+        path to input .wav file.
+    dest_path : str/os.path
+        path to output .mid file or to directory (if directory: use name of source .wav file for output .mid file).
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -215,6 +273,7 @@ def wav_to_midi(source_path,dest_path):
         # if dest_path points to a directory and not a .mid file
         # default to using source file name for output file
         dest_path = os.path.join(dest_path,src_splits['name']+".mid")
+
     # prep cmd list for subprocess.Popen()
     waon_options = ['-i', source_path, '-o', dest_path]
     res = run_exec(WAON_PATH,waon_options)
@@ -222,16 +281,17 @@ def wav_to_midi(source_path,dest_path):
 timidity_options = '-Ow -o'
 
 def midi_to_wav(source_path,dest_path,options=timidity_options):
-    '''
-    Converts a .mid file to a .wav file using Timidity++ (timidity.exe)
-    Parameters:
-        source_path = str/os.path; 
-            path to .mid file 
-        dest_path = str/os.path; 
-            path to .wav file or to directory (default: use name of source .mid file for output .wav file)
-        options = str; 
-            command line options passed to timidity: meant for the output file (default: '-Ow -o'])
-    '''
+    """Converts a .mid file to a .wav file using Timidity++ (timidity.exe) - https://sourceforge.net/projects/timidity/
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .mid file.
+    dest_path : str/os.path
+        path to .wav file or to directory (if directory: use name of source .mid file for output .wav file).
+    options : str, optional
+        space-separated string of command line options passed to timidity: meant for the output file, by default '-Ow -o'.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -246,19 +306,20 @@ def midi_to_wav(source_path,dest_path,options=timidity_options):
 
 
 def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
-    '''
-    Converts a .mid file to a .wav file using the synthesize functions in the pretty_midi package
-    Drum tracks are synthesized using the function pretty_midi/examples/chiptunes.py
-    Parameters:    
-        source_path = str/os.path; 
-            path to .mid file 
-        dest_path = str/os.path; 
-            path to .wav file or to directory (default: use name of source .mid file for output .wav file)
-        fs = int; 
-            Sample rate for .wav file
-        drum_vol_reduction = int; 
-            factor by which to divide the amplitudes of the drum track waveforms
-    '''
+    """Converts a .mid file to a .wav file using the synthesize functions in the pretty_midi package.  
+    Drum tracks are synthesized using the function `synthesize_drum_instrument` in pretty_midi/examples/chiptunes.py
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .mid file.
+    dest_path : str/os.path
+        path to output .wav file or to directory (if directory: use name of source .mid file for output .wav file).
+    fs : int, optional
+        Sample rate for .wav file, by default 44100.
+    drum_vol_reduction : int, optional
+        factor by which to divide the amplitudes of the drum track waveforms, by default 4.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -266,6 +327,7 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
         # if dest_path points to a directory and not a .wav file
         # default to using source file name for output file
         dest_path = os.path.join(dest_path,src_splits['name']+".wav")
+    
     midi_container = pretty_midi.PrettyMIDI(source_path)
     waveforms = []
     for ins in midi_container.instruments:
@@ -287,27 +349,43 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
     scipy.io.wavfile.write(dest_path,fs,synthesized)
 
 
-def midi_to_roll(source_path,dest_path,fs=25,out_type='one_roll',brighten=True,compress_colors=True):
-    '''
-    Converts a .mid file to piano roll(s) using get_piano_roll on each instrument - https://craffel.github.io/pretty-midi/
-    Parameters:
-        source_path = str/os.path; 
-            path to .mid file
-        dest_path = str/os.path; 
-            for conversion to images: path to .png file [suffixed with instrument code] or to directory (default: use name of source .mid file as prefix for output .png files)
-        fs = int; 
-            Sampling frequency for piano roll columns (each column is separated by 1/fs seconds)
-        out_type = str; 
-            controls how the piano roll(s) is returned:
-                'array_r3' = return as 1 raw rank-3 np.ndarray (instrument piano rolls merged into one) along with a tuple containing instrument codes to calling function [no need for dest_path]
-                'array_r2' = return as 1 raw rank-2 np.ndarray (full .mid file transcripted with only instrument with prog number 0)
-                'sep_roll' = process raw rank-2 np.ndarrays for each instrument into separate image files and write to dest_path 
-                'one_roll' = default; convert the ENTIRE .mid file to one rank-2 piano roll array (can be read as one instrument) and write to one image file to dest_path
-        brighten = boolean; 
-            used when returning images, see rollArr2R_to_Img for details
-        compress_colors = boolean; 
-            used when returning images, see rollArr2R_to_Img for details
-    '''
+def midi_to_roll(source_path,dest_path,out_type,fs=25,brighten=True,compress_colors=True):
+    """Converts a .mid file to piano roll(s) using pretty_midi.get_piano_roll (https://craffel.github.io/pretty-midi/) and/or drum_ins_to_roll functions.
+    Piano roll(s) are then saved to image files or returned as arrays.
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .mid file.
+    dest_path : str/os.path
+        used when returning images: path to .png file [suffixed with instrument code] or to directory (if directory: use name of source .mid file as prefix for output .png files).
+    out_type : str
+        controls how the piano roll(s) is returned, one of {'array_r3', 'array_r2', 'sep_roll, 'one_roll'}:
+            
+        'array_r3' = return as 1 raw 3D np.ndarray (instrument piano rolls merged into one) along with a tuple containing instrument codes to calling function [dest_path unused].
+
+        'array_r2' = return as 1 raw 2D np.ndarray made by using pretty_midi.get_piano_roll on the .mid file [dest_path unused].
+        (transcript all tracks in .mid file (except drum tracks) using default instrument: Acoustic Grand Piano -insCode="0n").
+
+        'sep_roll' = process raw 2D np.ndarrays for each instrument into separate image files using rollArr2D_to_Img and write them to dest_path.
+
+        'one_roll' = process the raw 2D np.ndarray from 'array_r2' mode into one image file using rollArr2D_to_Img and write it to dest_path.
+    fs : int, optional
+        Sampling frequency for piano roll columns (each column is separated by 1/fs seconds), by default 25.
+    brighten : bool, optional
+        used when returning images: see rollArr2D_to_Img for details, by default True.
+    compress_colors : bool, optional
+        used when returning images: see rollArr2D_to_Img for details, by default True.
+
+    Returns
+    -------
+    'array_r3' mode:
+        (stacked_roll_array,ins_codes) : (np.ndarray of shape=(notes,timesteps,instruments), tuple)
+            tuple of: 3D piano roll made by padding & stacking 2D Instrument piano rolls from .mid file along timesteps axis and corresponding instrument code strings.
+    'array_r2' mode:
+        one_ins_roll: np.ndarray, shape=(notes,timesteps)
+            2D piano roll made by using pretty_midi.get_piano_roll on the .mid file.
+    """      
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -348,36 +426,42 @@ def midi_to_roll(source_path,dest_path,fs=25,out_type='one_roll',brighten=True,c
         for i in range(len(ins_rolls)):
             roll_array,roll_code = ins_rolls[i],ins_codes[i]            
             save_path = os.path.join(dest_splits['directory'],dest_splits['name']+"-ins_"+roll_code+".png")
-            roll_img = rollArr2R_to_Img(roll_array,brighten=brighten,compress_colors=compress_colors)
+            roll_img = rollArr2D_to_Img(roll_array,brighten=brighten,compress_colors=compress_colors)
             roll_img.save(save_path)
         return len(ins_rolls)
     else:
         # if not creating separate rolls for instruments, create a single roll for entire midi track with instrument prog=0 (Piano)
         if out_type == 'one_roll':
-            roll_img = rollArr2R_to_Img(one_ins_roll,brighten=brighten,compress_colors=compress_colors)
+            roll_img = rollArr2D_to_Img(one_ins_roll,brighten=brighten,compress_colors=compress_colors)
             roll_img.save(dest_path)
             return 1
         elif out_type == 'array_r2':
             return one_ins_roll
-        
+
 
 def rollPic_slicer(source_path,dest_folder,fs=25,compress_colors=True,slice_dur=5,slice_suffix="-sp{:03d}"):
-    '''
-    Cuts up a large piano roll image into slices (images) that represent a fixed duration of .mid file audio
-    Parameters:
-        source_path = str/os.path; 
-            path to large piano roll image
-        dest_path = str/os.path; 
-            path to directory where roll image slices are to be stored
-        fs = int; 
-            Sampling frequency used to generate the original roll image
-        compress_colors = boolean; 
-            whether compression across color channels was performed to generate the original roll image
-        slice_dur = int; 
-            max duration in seconds of each slice
-        slice_suffix = str; 
-            formatting string used to name the slice image files
-    '''
+    """Cuts up a piano roll image into slices (images) that represent a fixed duration of .mid file audio.
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to piano roll image.
+    dest_folder : str/os.path
+        path to directory where roll image slices are to be stored.
+    fs : int, optional
+        Sampling frequency used to generate the original roll image, by default 25.
+    compress_colors : bool, optional
+        whether compression across color channels was performed to generate the original roll image, by default True.
+    slice_dur : int, optional
+        maximum duration (in seconds) of each slice, by default 5.
+    slice_suffix : str, optional
+        formatting string used to name the slice image files, by default "-sp{:03d}".
+
+    Returns
+    -------
+    im_counter : int
+        Number of image slices created and saved to disk.
+    """    
     src_splits = path_splitter(source_path)
 
     roll_img = Image.open(source_path)
@@ -401,25 +485,26 @@ def rollPic_slicer(source_path,dest_folder,fs=25,compress_colors=True,slice_dur=
     return im_counter
 
 
-def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,compress_colors=True,limit_rollvals=True): #using pretty_midi_examples/reverse_pianoroll.py
-    '''
-    Converts a piano roll (image/raw array) into a .mid file
-    Parameters:
-        source_path = str/os.path; 
-            for conversion from image: path to piano roll image
-        dest_path = str/os.path; 
-            path to .mid file or to directory (default: use name of source .png file appended with '-resynth' for output .mid file)
-        input_array = array or None; 
-            if not None, will use as raw roll array instead of reading it from image at source_path
-        ins_codes = tuple/sequence; 
-            for input_array: String codes for the instruments  used to generate the .mid file (see instrument_to_insCode for details)
-        fs = int; 
-            Sampling frequency used to generate the input roll image/array
-        compress_colors = boolean; 
-            for conversion from image: whether compression across color channels was performed to generate the input roll image
-        limit_rollvals = boolean; 
-            whether or not to limit pixel/array values to the range (0,127) --needed for successful transcription
-    '''
+def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,compress_colors=True,limit_rollvals=True): 
+    """Converts a piano roll (image/raw array) into a .mid file. Internally transforms 2D np.ndarrays & image files to 3D np.ndarrays and converts them using rollArr3D_to_PrettyMIDI function.
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        used for conversion from image: path to piano roll image.
+    dest_path : str/os.path
+        path to .mid file or to directory (if directory: use name of source .png file appended with '-resynth' for output .mid file).
+    input_array : np.ndarray of shape=(notes,timesteps) or (notes,timesteps,instruments) or None, optional
+        if not None, will use as roll array instead of reading it from image at source_path, by default None.
+    ins_codes : tuple/list, optional
+        String codes for the instruments used to generate the .mid file (see instrument_to_insCode for details), by default ('0n',) (setting for 2D np.ndarray & image rolls).
+    fs : int, optional
+        Sampling frequency used to generate the input roll image/array, by default 25.
+    compress_colors : bool, optional
+        used for conversion from image: whether compression across color channels was performed to generate the input roll image, by default True.
+    limit_rollvals : bool, optional
+        whether or not to limit pixel/array values to the range (0,127), by default True.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -433,7 +518,7 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
         roll_raw = np.array(input_array,dtype='float32')
         compress_colors=None
     else:
-        # piano roll image is for only one instrument so it is first converted to rank-2
+        # piano roll image is for only one instrument so it is first converted to 2D
         roll_img = Image.open(source_path)
         roll_img.load()
         roll_raw = np.asarray(roll_img,dtype='float32')
@@ -444,7 +529,7 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
     elif compress_colors is None:
         roll_to_conv = roll_raw
 
-    # for the conversion back to MIDI, roll_to_conv must be of rank-3
+    # for the conversion back to MIDI, roll_to_conv must be 3D
     if len(roll_to_conv.shape) < 3:
         roll_to_conv = roll_to_conv.reshape(roll_to_conv.shape+(1,))
 
@@ -455,21 +540,27 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
     if limit_rollvals:
         roll_to_conv = np.vectorize(lim_val)(roll_to_conv)
 
-    roll_midi = rollArr3R_to_PrettyMIDI(roll_to_conv, ins_codes, fs=fs)
+    roll_midi = rollArr3D_to_PrettyMIDI(roll_to_conv, ins_codes, fs=fs)
     roll_midi.write(dest_path)
 
 
 def midi_to_csv(source_path,dest_path,ret_csv_strings=False):
-    '''
-    Converts a .mid file to a .csv file containing the playback instructions of the MIDI file using py-midicsv - https://pypi.org/project/py-midicsv/
-    Parameters:
-        source_path = str/os.path; 
-            path to .mid file
-        dest_path = str/os.path; 
-            path to .csv file or to directory (default: use name of source .mid file for output .csv file)
-        ret_csv_strings = boolean; 
-            whether to return list of csv formatted strings to calling function or write the list to a .csv file specified by dest_path
-    '''
+    """Converts a .mid file to a .csv file (containing human-readable instructions of the MIDI file) using py-midicsv - https://pypi.org/project/py-midicsv/
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .mid file.
+    dest_path : str/os.path
+        path to .csv file or to directory (if directory: use name of source .mid file for output .csv file).
+    ret_csv_strings : bool, optional
+        True: return list of csv formatted strings to calling function, False: write the list to a .csv file specified by dest_path, by default False.
+
+    Returns
+    -------
+    csv_str_list : list
+        list of csv formatted strings containing the instructions of the MIDI file; only returned if input ret_csv_strings is True.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -487,24 +578,31 @@ def midi_to_csv(source_path,dest_path,ret_csv_strings=False):
         writer.writerows(csv_str_list)
 
 def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
-    '''
-    Converts a .mid file to a .txt file containing an encoded form of its piano roll (notes+velocities)
-    - Internally makes use of midi_to_roll function
-    Parameters:
-        source_path = str/os.path; 
-            path to .mid file
-        dest_path = str/os.path; 
-            path to .txt file or to directory (default: use name of source .mid file for output .txt file)
-        all_ins = boolean; 
-            decides whether to transcribe .mid file events including instrument information specified in the .mid file 
-            or transcribe all events such that they can be read back with only 1 common instrument
-        fs = int; 
-            Sampling frequency for piano roll columns (each column is separated by 1/fs seconds) -> passed to midi_to_roll
-            for every second of audio: `fs` lines of encoded text to generated - 1 line = 1 piano roll column
-            if no note is played in a column, a null value (note=0,velo=0) is written for that line
-        enc_fn = function;
-            specifies how notes, velocities, and instrument codes are to be encoded [see definition of hex2 function for an example]
-    '''
+    """Converts a .mid file to a .txt file containing an encoded form of its piano roll: notes+velocities to be played for each instrument per timestep. 
+    Internally uses midi_to_roll function.
+    Each line of the output .txt represents a roll timestep and would have the following template:
+    <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
+    If there are no notes to be played for an instrument for the timestep, a single null note is shown: 00-00.
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .mid file
+    dest_path : str/os.path
+        path to .txt file or to directory (if directory: use name of source .mid file for output .txt file)
+    all_ins : bool, optional
+        True: transcribe notes using their corresponding instruments specified in the .mid file, False: transcribe all notes in the .mid file using default instrument, by default False.
+        [default instrument= Acoustic Grand Piano -insCode="0n"]
+    fs : int, optional
+        Sampling frequency for piano roll columns (each column is separated by 1/fs seconds), by default 25
+    enc_fn : function, optional
+        specifies how notes, velocities, and instrument codes are to be encoded [see definition of hex2 function for an example], by default hex2
+
+    Returns
+    -------
+    num_timesteps : int
+        Number of timesteps transcripted to the .txt file.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -521,15 +619,14 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
         if not all_ins:
             ## single instrument mode
             # roll to be transcribed as Acoustic Grand Piano - instrument program 0 (default)
-            roll_array = midi_to_roll(source_path,"",fs=fs,out_type='array_r2')
+            roll_array = midi_to_roll(source_path,"",'array_r2',fs=fs)
             # set ins_codes to contain only the default instrument
             ins_codes = ("0n",)
-            # reshape the roll_array to rank-3 (one instrument)
+            # reshape the roll_array to 3D (one instrument)
             roll_array = np.reshape(roll_array,(roll_array.shape+(1,)))
         else:
-            #if transcribing with all instruments, each line represents a roll column and would have the following template:
-            # <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
-            roll_array,ins_codes = midi_to_roll(source_path,"",fs=fs,out_type='array_r3')
+            ## all instruments mode
+            roll_array,ins_codes = midi_to_roll(source_path,"",'array_r3',fs=fs)
     except Exception:
         print("failed to get roll_array")
         return 0
@@ -540,6 +637,8 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
     # encode the number part of the ins_codes using the encoding function enc_fn
     encoded_ins_codes = [enc_fn(int(c[:-1]),"forward")+c[-1] for c in ins_codes]
 
+    # Each line represents a roll column and would have the following template:
+    # <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
     for c in range(num_timesteps):
         col = roll_array[:,c,:]
         col_str = ""
@@ -548,7 +647,7 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
             col_ins = col[:,i]
             non_zero_notes = list(np.nonzero(col_ins)[0]) #indices of notes with non-zero velocity values
             if len(non_zero_notes) == 0:
-                # if no notes for instrument, add a null note
+                # if no notes for instrument, add a null note: 00-00
                 ins_str += enc_fn(int(0),'forward')+'-'+enc_fn(int(0),'forward')
             else:
                 # otherwise, add note-velo strings separated by spaces
@@ -564,21 +663,8 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
 
 
 def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
-    '''
-    Converts a .txt file containing an encoded form of a MIDI piano roll (notes+velocities) to a .mid file 
-    - Internally makes use of roll_to_midi function
-    Parameters:
-        source_path = str/os.path; 
-            path to .txt file
-        dest_path = str/os.path; 
-            path to .mid file or to directory (default: use name of source .txt file for output .mid file)
-        fs = int; 
-            number of lines of encoded text to convert in order to produce 1 second of audio (sampling frequency) -> passed to roll_to_midi: 
-        enc = function; 
-            specifies how note/velocity values are to be decoded [see definition of hex2 function for an example]
-        logging = boolean; 
-            whether or not to print and write to a log file, statistics on the conversion process
-    '''
+    # TODO: complete this function and add docstring.
+
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -603,7 +689,7 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
             code_and_notes = [s for s in inst_line.split(' ') if s != '']
             inst_code = code_and_notes[0].split('-')[0]
     
-    # # previous version - no longer compatible # #
+    # # previous version - no longer compatible - use as reference to write the new version # #
     
     # raw_lines = txt_in.readlines()
     # T_roll_rows = []
@@ -668,19 +754,20 @@ wav_sine_synth_options = '--quiet --sine -min 27.5 -max 19912.127 --pps 25 -r 44
 wav_noise_synth_options = '--quiet --noise -min 27.5 -max 19912.127 --pps 25 -r 44100 -f 16'
 
 def wav_to_spectro(source_path,dest_path,options=spec_analysis_options,encode=True):
-    '''
-    Converts a .wav file to a spectrogram (.png file) using ARSS - http://arss.sourceforge.net
-    Parameters:
-        source_path = str/os.path; 
-            path to .wav file 
-        dest_path = str/os.path; 
-            path to spectrogram (.png file) or to directory (default: use name of source .wav file for output .png file)
-        options = str; 
-            command line options passed to ARSS as a space separated string:
-            selects analysis mode, frequency range, beats per octave, pixels/sec, etc.
-        encode = boolean; 
-            whether or not to re-encode the generated .png spectrogram as rgba - appends '-enc' to output file name
-    '''
+    """Converts a .wav file to a spectrogram (.png file) using ARSS - http://arss.sourceforge.net
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .wav file.
+    dest_path : str/os.path
+        path to output spectrogram (.png file) or to directory (if directory: use name of source .wav file for output .png file).
+    options : str, optional
+        space-separated string of command line options passed to ARSS: selects analysis mode, frequency range, beats per octave, pixels/sec, etc., 
+        by default spec_analysis_options = '--quiet --analysis -min 27.5 -max 19912.127 --bpo 12 --pps 25 --brightness 1'
+    encode : bool, optional
+        whether or not to re-encode the generated .png spectrogram as rgba - appends '-enc' to output file name, by default True
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path) # original path splits
     
@@ -705,17 +792,18 @@ def wav_to_spectro(source_path,dest_path,options=spec_analysis_options,encode=Tr
 
 
 def spectro_to_wav(source_path,dest_path,options=wav_noise_synth_options):
-    '''
-    Converts a spectrogram (.png file) to a .wav file using ARSS - http://arss.sourceforge.net
-    Parameters:
-        source_path = str/os.path; 
-            path to spectrogram (.png file)
-        dest_path = str/os.path; 
-            path to .wav file or to directory (default: use name of source .png file for output .wav file)
-        options = str; 
-            command line options passed to ARSS as a space separated string:
-            selects synthesis mode (noise/sine), frequency range, beats per octave, pixels/sec, etc.
-    '''
+    """Converts a spectrogram/image (.png file) to a .wav file using ARSS - http://arss.sourceforge.net
+
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input spectrogram/image (.png file)
+    dest_path : str/os.path
+        path to output .wav file or to directory (if directory: use name of source .png file for output .wav file)
+    options : str, optional
+        space-separated string of command line options passed to ARSS: selects synthesis mode (noise/sine), frequency range, beats per octave, pixels/sec, etc., 
+        by default wav_noise_synth_options = '--quiet --noise -min 27.5 -max 19912.127 --pps 25 -r 44100 -f 16'
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
