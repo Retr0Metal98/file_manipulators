@@ -5,6 +5,8 @@ Module with functions for converting audio files across several formats
 import os
 import sys
 import csv
+import re
+
 # imports from package modules
 from .common_file_ops import path_splitter, run_exec, img_fmt_converter
 from .config import read_config
@@ -102,10 +104,11 @@ def check_insCode(insCode,print_res=False):
         res_msg = "insCode {} refers to the instrument {}.".format(insCode,insName)
     elif drum == 'd':
         drum = True
-        insName = pretty_midi.note_number_to_drum_name(prog)
+        insName = pretty_midi.note_number_to_drum_name(prog+35)
         res_msg = "insCode {} refers to the drum instrument {}.".format(insCode,insName)
     else: # last character must be 'd' or 'n'
         res_msg = "insCode is invalid and doesn't refer to any instrument."
+    res = False
     if insName:
         res = True
     if print_res:
@@ -485,7 +488,7 @@ def rollPic_slicer(source_path,dest_folder,fs=25,compress_colors=True,slice_dur=
     return im_counter
 
 
-def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,compress_colors=True,limit_rollvals=True): 
+def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,compress_colors=True): 
     """Converts a piano roll (image/raw array) into a .mid file. Internally transforms 2D np.ndarrays & image files to 3D np.ndarrays and converts them using rollArr3D_to_PrettyMIDI function.
 
     Parameters
@@ -502,8 +505,6 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
         Sampling frequency used to generate the input roll image/array, by default 25.
     compress_colors : bool, optional
         used for conversion from image: whether compression across color channels was performed to generate the input roll image, by default True.
-    limit_rollvals : bool, optional
-        whether or not to limit pixel/array values to the range (0,127), by default True.
     """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
@@ -534,11 +535,10 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
         roll_to_conv = roll_to_conv.reshape(roll_to_conv.shape+(1,))
 
     def lim_val(val):
-        if 128 <= val <= 255:
-            val //= 2
+        val -= (val % 127) * 128
         return val
-    if limit_rollvals:
-        roll_to_conv = np.vectorize(lim_val)(roll_to_conv)
+    # values in the piano roll are limited to the range [0,127]
+    roll_to_conv = np.vectorize(lim_val)(roll_to_conv) 
 
     roll_midi = rollArr3D_to_PrettyMIDI(roll_to_conv, ins_codes, fs=fs)
     roll_midi.write(dest_path)
@@ -577,11 +577,10 @@ def midi_to_csv(source_path,dest_path,ret_csv_strings=False):
         writer = csv.writer(f)
         writer.writerows(csv_str_list)
 
-def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
+
+def midi_to_rollTxt(source_path,dest_path,all_ins=True,fs=25,enc_fn=hex2):
     """Converts a .mid file to a .txt file containing an encoded form of its piano roll: notes+velocities to be played for each instrument per timestep. 
     Internally uses midi_to_roll function.
-    Each line of the output .txt represents a roll timestep and would have the following template:
-    <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
     If there are no notes to be played for an instrument for the timestep, a single null note is shown: 00-00.
 
     Parameters
@@ -590,9 +589,13 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
         path to input .mid file
     dest_path : str/os.path
         path to .txt file or to directory (if directory: use name of source .mid file for output .txt file)
-    all_ins : bool, optional
-        True: transcribe notes using their corresponding instruments specified in the .mid file, False: transcribe all notes in the .mid file using default instrument, by default False.
-        [default instrument= Acoustic Grand Piano -insCode="0n"]
+    all_ins : bool, optional, by default True
+        True- transcribe notes using their corresponding instruments specified in the .mid file:
+            Template for each line of output .txt:
+            <Instrument_0_code>: <Note>-<Velo> <Note>-<Velo> ...<TAB><Instrument_1_code>: <Note>-<Velo> <Note>-<Velo> ...<TAB><NEWLINE>
+        False: transcribe notes in the .mid file without instrument information, the output txt file can only be read back with 1 instrument, set by default to Acoustic Grand Piano - instrument program 0.
+            Template for each line of output .txt:
+            <Note>-<Velo> <Note>-<Velo> <Note>-<Velo> <Note>-<Velo> ...<NEWLINE>
     fs : int, optional
         Sampling frequency for piano roll columns (each column is separated by 1/fs seconds), by default 25
     enc_fn : function, optional
@@ -615,15 +618,12 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
     txt_out = open(dest_path,'a+')
     print("Writing to .txt file at: "+dest_path)
     # first get roll_array from midi 
+    num_timesteps, num_instruments = 0, 1
     try:   
         if not all_ins:
-            ## single instrument mode
-            # roll to be transcribed as Acoustic Grand Piano - instrument program 0 (default)
+            ## single instrument mode - roll to be transcribed omitting instrument information
             roll_array = midi_to_roll(source_path,"",'array_r2',fs=fs)
-            # set ins_codes to contain only the default instrument
-            ins_codes = ("0n",)
-            # reshape the roll_array to 3D (one instrument)
-            roll_array = np.reshape(roll_array,(roll_array.shape+(1,)))
+            roll_array = np.reshape(roll_array,roll_array.shape+(1,))
         else:
             ## all instruments mode
             roll_array,ins_codes = midi_to_roll(source_path,"",'array_r3',fs=fs)
@@ -631,40 +631,58 @@ def midi_to_rollTxt(source_path,dest_path,all_ins=False,fs=25,enc_fn=hex2):
         print("failed to get roll_array")
         return 0
 
-    num_timesteps = roll_array.shape[1] # get number of timesteps/columns from 2nd axis of roll_array
-    num_instruments = roll_array.shape[2] # get number of instruments from 3rd axis of roll_array    
-    # ins_code is of the form: <number from 0-127><n/d based on is_drum>
-    # encode the number part of the ins_codes using the encoding function enc_fn
-    encoded_ins_codes = [enc_fn(int(c[:-1]),"forward")+c[-1] for c in ins_codes]
+    num_timesteps = roll_array.shape[1] # get number of timesteps/columns from 2nd axis of roll_array    
+    num_instruments = roll_array.shape[2] # get number of instruments from 3rd axis of roll_array 
 
-    # Each line represents a roll column and would have the following template:
-    # <Instrument_0_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_1_code>: <Note+Velo> <Note+Velo> ...<TAB><Instrument_2_code>: <Note+Velo> <Note+Velo> ...<TAB><NEWLINE>
-    for c in range(num_timesteps):
-        col = roll_array[:,c,:]
-        col_str = ""
-        for i in range(num_instruments):
-            ins_str = encoded_ins_codes[i]+"- "
-            col_ins = col[:,i]
-            non_zero_notes = list(np.nonzero(col_ins)[0]) #indices of notes with non-zero velocity values
+    if all_ins:
+        # ins_code is of the form: <number from 0-127><n/d based on is_drum>
+        # encode the number part of the ins_codes using the encoding function enc_fn
+        encoded_ins_codes = [enc_fn(int(c[:-1]),"forward")+c[-1] for c in ins_codes]
+
+    for t in range(num_timesteps):
+        timestep = roll_array[:,t,:]
+        timestep_str = ""
+        for i in range(num_instruments): # will loop only once if all_ins is False
+            instrument = timestep[:,i]
+            non_zero_notes = list(np.nonzero(instrument)[0]) #indices of notes with non-zero velocity values
+            ins_str = encoded_ins_codes[i]+": " if all_ins else "" # include instrument code only if all_ins is True
+
             if len(non_zero_notes) == 0:
                 # if no notes for instrument, add a null note: 00-00
-                ins_str += enc_fn(int(0),'forward')+'-'+enc_fn(int(0),'forward')
+                ins_str += enc_fn(int(0),'forward')+'-'+enc_fn(int(0),'forward')+" "
             else:
                 # otherwise, add note-velo strings separated by spaces
                 for n in non_zero_notes:
-                    ins_str += enc_fn(int(n),'forward')+'-'+enc_fn(int(col_ins[n]),'forward')+" "
-            ins_str += '\t'
-            col_str += ins_str
-        col_str += '\n'
-        txt_out.write(col_str)
+                    ins_str += enc_fn(int(n),'forward')+'-'+enc_fn(int(instrument[n]),'forward')+" "
+            
+            ins_str += '\t' if all_ins else "" # tabs used to separate instrument notes only if all_ins is True
+            timestep_str += ins_str
+        timestep_str += '\n' # add newline after processing the timestep (column of piano roll)
+        txt_out.write(timestep_str)
+
+    # after writing all events to the file, write a newline and close the text object.
     txt_out.write("\n")
     txt_out.close()
-    return num_timesteps            
+    return num_timesteps
 
 
-def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
-    # TODO: complete this function and add docstring.
+def rollTxt_to_midi(source_path,dest_path,fs=25,dec_fn=hex2,logging=True):
+    """Converts a .txt file containing an encoded form of a MIDI piano roll (notes+velocities, optionally instrument codes) to a .mid file.
+    Internally uses roll_to_midi function. Expects formatting as described in the function midi_to_rollTxt.
 
+    Parameters
+    ----------
+    source_path : str/os.path
+        path to input .txt file.
+    dest_path : str/os.path
+        path to output .mid file or to directory (if directory: use name of source .txt file for output .mid file).
+    fs : int, optional
+        number of lines of encoded text to convert in order to produce 1 second of audio (sampling frequency), by default 25.
+    dec_fn : function, optional, by default hex2
+        function that specifies how the notes, velocities and instrument codes are to be decoded [see definition of hex2 for an example].
+    logging : bool, optional
+        whether or not to output statistics on the conversion process through print and to a log file, by default True.
+    """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
 
@@ -674,79 +692,99 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,enc_fn=hex2,logging=True):
         dest_path = os.path.join(dest_path,src_splits['name']+".mid")
         dest_splits = path_splitter(dest_path)
     
+    # try to read the text file
     try:
         txt_in = open(source_path,'r')
     except IOError:
         print("File at {} does not exist... Exiting program".format(source_path))
+        return None
     
+    # create regexes which will be used later to find instrument codes, notes & velocities from the lines of the .txt file
+    inst_regex, note_velo_regex = "", ""
+    if dec_fn == hex2:
+        # if decoding with hex2: notes, velocities, instrument codes (values in the range [0,127]) will be exactly 2 characters long
+        inst_regex = r".{2,2}[dn]:"
+        note_velo_regex = r".{2,2}-.{2,2}"
+    elif dec_fn == None:
+        # if no decoding required, the above values can be 1-3 characters long
+        inst_regex = r".{1,3}[dn]:"
+        note_velo_regex = r".{1,3}-.{1,3}"
+    inst_regex, note_velo_regex = re.compile(inst_regex), re.compile(note_velo_regex)
 
-    # new version - work in progress #
-    raw_lines = txt_in.readlines()
-    instrument_rolls = {}
-    for line in raw_lines:
-        inst_splits = [s for s in line.split('\t') if s != '' and s != '']
+    raw_lines = txt_in.readlines() # read the .txt file
+    instrument_rolls = {} # to store the piano rolls of the instruments identified in the .txt file
+
+    # variables used to log details of the conversion process
+    instrument_event_counts = {}
+    events_processed = 0
+
+    for t in range(len(raw_lines)):
+        line = raw_lines[t]
+        inst_splits = [s for s in line.split('\t') if s != '\n' and s != ''] # expects events for each instrument to be separated by tabs
         for inst_line in inst_splits:
-            code_and_notes = [s for s in inst_line.split(' ') if s != '']
-            inst_code = code_and_notes[0].split('-')[0]
+            inst_str = inst_regex.findall(inst_line)
+            note_velo_strs = note_velo_regex.findall(inst_line)
+            if not note_velo_strs: # if no valid notes are found, skip this line.
+                continue
+            if inst_str: # if there are matches to the regex, take the first match as the inst_code (encoded) after excluding the ":" character
+                inst_code = inst_str[0][:-1]
+            else: # else, use a default instrument -> this will occur for text files generated with midi_to_rollTxt with the setting all_ins=False
+                inst_code = "0n"
+            
+            # then decode the program number from the inst_code as needed
+            if dec_fn:
+                inst_code = str(dec_fn(inst_code[:-1],"reverse"))+inst_code[-1]
+            # if inst_code is invalid, use the default instrument
+            if not check_insCode(inst_code):
+                inst_code = "0n"
+            
+            # if the inst_code hasn't been seen before, create a 2D piano roll for it
+            if inst_code not in instrument_rolls.keys():
+                instrument_rolls[inst_code] = np.zeros((128,len(raw_lines)))
+                instrument_event_counts[inst_code] = 0
+            
+            for n_v in note_velo_strs: # strs matching the regex are of the form: <Note>-<Velocity>
+                n,v = n_v.split('-') # first separate note and velocity strings
+                # then decode the strings back to integers
+                if dec_fn: 
+                    # if decoding function is given, decode using it.
+                    n,v = dec_fn(n,"reverse"), dec_fn(v,"reverse")
+                else:
+                    # otherwise, attempt to directly convert the strings to base-10 integers
+                    n,v = int(n), int(v)
+                
+                instrument_rolls[inst_code][n,t] = v # update the 2D piano roll for the instrument
+                # increment the logging variables
+                instrument_event_counts[inst_code] += 1
+                events_processed += 1
     
-    # # previous version - no longer compatible - use as reference to write the new version # #
+    # collate instrument codes and their corresponding piano rolls into separate lists
+    instrument_codes = []
+    list_of_rolls = []
+    for code, roll in instrument_rolls.items():
+        instrument_codes.append(code)
+        list_of_rolls.append(roll)
     
-    # raw_lines = txt_in.readlines()
-    # T_roll_rows = []
-    # note_len,velo_len = 0, 0
-    # transcribed_notes, dropped_notes, bad_notes, invalid_notes = 0, 0, 0, 0
-    
-    # if enc_fn == hex2:
-    #     note_len,velo_len = 2,2
-
-    # split_len = note_len+velo_len+1
-    # for line in raw_lines:
-    #     splits = [line[i:i+split_len] for i in range(0,len(line),split_len)]
-    #     roll_row = np.zeros((128,))
-    #     for s in splits:
-    #         if s == '\n':
-    #             continue # no note on that line
-    #         if len(s) != split_len:
-    #             # print("Dropped note: ",s)
-    #             dropped_notes += 1
-    #             continue 
-    #         else:
-    #             # take the first 4 characters
-    #             try:
-    #                 note,velo = enc_fn(s[:note_len], 'reverse'), float(enc_fn(s[note_len:split_len], 'reverse'))
-    #             except ValueError:
-    #                 # print("Bad note: ",s)
-    #                 bad_notes += 1
-    #             else:
-    #                 if (0 <= note <= 127) and (0 <= velo <= 127):
-    #                     transcribed_notes += 1
-    #                     roll_row[note] = velo
-    #                 else:
-    #                     # print("Note/Velo value out of valid range: ",s)
-    #                     invalid_notes += 1
-    #                     continue
-    #     T_roll_rows.append(roll_row)
-    
-    # roll_array = np.vstack(T_roll_rows)
-    # roll_array = roll_array.T
-    # roll_to_midi(source_path,dest_path,input_array=roll_array,fs=fs,limit_rollvals=False)
-    # if logging:
-    #     log_strings = [
-    #         '-------------------------------------------------',
-    #         "Converted rollTxt {} to midi!".format(source_path),
-    #         '*************************************************',
-    #         "Transcribed {} notes".format(transcribed_notes),
-    #         "Dropped {} incomplete notes".format(dropped_notes),
-    #         "Ignored {} bad notes".format(bad_notes),
-    #         "Ignored {} invalid notes".format(invalid_notes),
-    #         '-------------------------------------------------',
-    #     ]
-    #     log_path = os.path.join(dest_splits['directory'],src_splits['name']+"-rollTxt_conv_log.txt")
-    #     log_file = open(log_path,'a+')
-    #     for line in log_strings:
-    #         print(line)
-    #     log_file.writelines(line+"\n" for line in log_strings)
-    #     log_file.close()
+    # stack the 2D piano rolls of each instrument into a 3D piano roll
+    stacked_roll_array = np.stack(list_of_rolls,axis=-1)
+    # convert the 3D piano roll to a midi file through roll_to_midi
+    roll_to_midi(source_path,dest_path,input_array=stacked_roll_array,ins_codes=instrument_codes,fs=fs)
+    if logging:
+        note_count_logs = ["Instrument {}: {} events".format(code, event_count) for code,event_count in instrument_event_counts.items()]
+        log_strings = [
+            '-------------------------------------------------',
+            "Converted rollTxt {} to midi!".format(source_path),
+            '*************************************************',
+            "Transcribed {} events for {} instruments".format(events_processed,len(instrument_codes)),
+            '-------------------------------------------------',
+        ]
+        log_strings += note_count_logs
+        log_path = os.path.join(dest_splits['directory'],src_splits['name']+"-rollTxt_conv_log.txt")
+        log_file = open(log_path,'a+')
+        for line in log_strings:
+            print(line)
+        log_file.writelines(line+"\n" for line in log_strings)
+        log_file.close()
 
 
 spec_analysis_options = '--quiet --analysis -min 27.5 -max 19912.127 --bpo 12 --pps 25 --brightness 1'
