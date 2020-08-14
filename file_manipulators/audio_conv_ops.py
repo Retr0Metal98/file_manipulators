@@ -308,7 +308,7 @@ def midi_to_wav(source_path,dest_path,options=timidity_options):
     run_exec(TIMIDITY_PATH,full_options)
 
 
-def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
+def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol=0.25,non_drum_vol=1.0):
     """Converts a .mid file to a .wav file using the synthesize functions in the pretty_midi package.  
     Drum tracks are synthesized using the function `synthesize_drum_instrument` in pretty_midi/examples/chiptunes.py
 
@@ -320,8 +320,10 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
         path to output .wav file or to directory (if directory: use name of source .mid file for output .wav file).
     fs : int, optional
         Sample rate for .wav file, by default 44100.
-    drum_vol_reduction : int, optional
-        factor by which to divide the amplitudes of the drum track waveforms, by default 4.
+    drum_vol : float, optional
+        factor by which to multiply the amplitudes of the drum track waveforms (a kind of `volume` control), by default 0.25.
+    non_drum_vol: float, optional
+        factor by which to multiply the amplitudes of the NON-drum track waveforms (a kind of `volume` control), by default 1.0.
     """    
     src_splits = path_splitter(source_path)
     dest_splits = path_splitter(dest_path)
@@ -339,10 +341,11 @@ def midi_to_wav_prettyMIDI(source_path,dest_path,fs=44100,drum_vol_reduction=4):
             # if instrument is a drum, get its waveform from chiptunes
             wave_f = chiptunes.synthesize_drum_instrument(ins,fs=fs)
             # reduce the amplitude of its waveform by drum_vol_reduction
-            wave_f /= drum_vol_reduction
+            wave_f *= drum_vol
         else:
             # otherwise, get its waveform by calling its synthesize function (which will return an empty waveform if it is a drum instrument)
             wave_f = ins.synthesize(fs=fs)
+            wave_f *= non_drum_vol
         waveforms.append(wave_f)
     # Allocate output waveform, with #sample = max length of all waveforms
     synthesized = np.zeros(np.max([w.shape[0] for w in waveforms]))
