@@ -25,7 +25,7 @@ Repository of programs used to manipulate files - convert across file types, col
 ## Usage
 - To use this package in your own programs, include the following lines:
   - `import sys`
-  - `sys.path.append('path/to/parent/directory/of/file_manipulators/repo')`
+  - `sys.path.append('path/to/file_manipulators/repository')`
 - Then import this package as: `import file_manipulators`
 - Or, import resources (modules, functions, variables, etc.) from the package using: `import file_manipulators.<resource_name>`
   
