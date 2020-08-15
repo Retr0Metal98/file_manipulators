@@ -97,11 +97,14 @@ def check_insCode(insCode,print_res=False):
     """    
     prog,drum = int(insCode[:-1]),insCode[-1:]
     insName = ''
-    if drum == 'n':
-        insName = pretty_midi.program_to_instrument_name(prog)
-    elif drum == 'd':
-        insName = pretty_midi.note_number_to_drum_name(prog+35)
-    # last character must be 'd' or 'n'
+    try:
+        # last character must be 'd' or 'n', if so, attempt to get the program name
+        if drum == 'n':
+            insName = pretty_midi.program_to_instrument_name(prog)
+        elif drum == 'd':
+            insName = pretty_midi.note_number_to_drum_name(prog+35)
+    except ValueError:
+        insName = '' # if the above fails, it means insCode is invalid.
 
     res_msg = "insCode is invalid and doesn't refer to any instrument."    
     res = False
@@ -698,7 +701,7 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,dec_fn=hex2,logging=True):
     # variables used to log details of the conversion process
     instrument_event_counts = {}
     events_processed = 0
-
+    invalid_events = 0
     for t in range(len(raw_lines)):
         line = raw_lines[t]
         inst_splits = [s for s in line.split('\t') if s != '\n' and s != ''] # expects events for each instrument to be separated by tabs
@@ -707,38 +710,45 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,dec_fn=hex2,logging=True):
             note_velo_strs = note_velo_regex.findall(inst_line)
             if not note_velo_strs: # if no valid notes are found, skip this line.
                 continue
-            if inst_str: # if there are matches to the regex, take the first match as the inst_code (encoded) after excluding the ":" character
-                inst_code = inst_str[0][:-1]
-            else: # else, use a default instrument -> this will occur for text files generated with midi_to_rollTxt with the setting all_ins=False
+            inst_code = ""
+            try:
+                # if there are matches to the regex, take the first match as the inst_code (encoded) after excluding the ":" character
+                inst_code = inst_str[0][:-1] 
+                # then decode the program number from the inst_code as needed
+                if dec_fn:
+                    inst_code = str(dec_fn(inst_code[:-1],"reverse"))+inst_code[-1]
+                if not check_insCode(inst_code):
+                    raise Exception
+            except Exception: 
+                # If no regex matches, or can't decode matched inst_code or invalid inst_code:
+                # use a default instrument -> this will occur for text files generated with midi_to_rollTxt with the setting all_ins=False
                 inst_code = "0n"
-            
-            # then decode the program number from the inst_code as needed
-            if dec_fn:
-                inst_code = str(dec_fn(inst_code[:-1],"reverse"))+inst_code[-1]
-            # if inst_code is invalid, use the default instrument
-            if not check_insCode(inst_code):
-                inst_code = "0n"
-            
+   
             # if the inst_code hasn't been seen before, create a 2D piano roll for it
             if inst_code not in instrument_rolls.keys():
                 instrument_rolls[inst_code] = np.zeros((128,len(raw_lines)))
                 instrument_event_counts[inst_code] = 0
             
             for n_v in note_velo_strs: # strs matching the regex are of the form: <Note>-<Velocity>
-                n,v = n_v.split('-') # first separate note and velocity strings
-                # then decode the strings back to integers
-                if dec_fn: 
-                    # if decoding function is given, decode using it.
-                    n,v = dec_fn(n,"reverse"), dec_fn(v,"reverse")
-                else:
-                    # otherwise, attempt to directly convert the strings to base-10 integers
-                    n,v = int(n), int(v)
-                
-                instrument_rolls[inst_code][n,t] = v # update the 2D piano roll for the instrument
-                # increment the logging variables
-                instrument_event_counts[inst_code] += 1
-                events_processed += 1
-    
+                try:
+                    n,v = n_v.split('-') # first separate note and velocity strings
+                    # then decode the strings back to integers
+                    if dec_fn: 
+                        # if decoding function is given, decode using it.
+                        n,v = dec_fn(n,"reverse"), dec_fn(v,"reverse")
+                    else:
+                        # otherwise, attempt to directly convert the strings to base-10 integers
+                        n,v = int(n), int(v)
+                    if (not 0 <= n <= 127) or (not 0 <= v <= 127):
+                        raise ValueError
+                except ValueError:
+                    invalid_events += 1
+                else:    
+                    instrument_rolls[inst_code][n,t] = v # update the 2D piano roll for the instrument
+                    # increment the logging variables
+                    instrument_event_counts[inst_code] += 1
+                    events_processed += 1
+        
     # collate instrument codes and their corresponding piano rolls into separate lists
     instrument_codes = []
     list_of_rolls = []
@@ -758,6 +768,7 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,dec_fn=hex2,logging=True):
             "Converted rollTxt {} to midi!".format(source_path),
             '*************************************************',
             "Transcribed {} events for {} instruments".format(events_processed,len(instrument_codes)),
+            "Ignored {} invalid events".format(invalid_events),
             '-------------------------------------------------',
         ]
         log_strings += note_count_logs
