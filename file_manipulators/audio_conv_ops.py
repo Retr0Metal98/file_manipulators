@@ -553,7 +553,8 @@ def roll_to_midi(source_path,dest_path,input_array=None,ins_codes=('0n',),fs=25,
         roll_to_conv = roll_to_conv.reshape(roll_to_conv.shape+(1,)) # if originally 2D, number of instruments = 1
 
     def lim_val(val):
-        val -= (val % 127) * 128
+        if val > 127:
+            val -= (val % 127) * 128
         return val
     
     roll_to_conv = np.vectorize(lim_val)(roll_to_conv) # values in the piano roll are limited to the range [0,127]
@@ -743,7 +744,7 @@ def rollTxt_to_midi(source_path,dest_path,fs=25,dec_fn=hex2,logging=True):
                         raise ValueError
                 except ValueError:
                     invalid_events += 1
-                else:    
+                else:
                     instrument_rolls[inst_code][n,t] = v # update the 2D piano roll for the instrument
                     # increment the logging variables
                     instrument_event_counts[inst_code] += 1
